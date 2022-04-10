@@ -10,3 +10,10 @@ edition = "2021"
 tui = { version = "0.15", features = ["crossterm"], default-features = false }
 crossterm = "0.23"
 lazy_static = "1.4.0"
+aws-config = "0.9.0"
+aws-sdk-dynamodb = "0.9.0"
+aws-sdk-ec2 = "0.9.0"
+tokio = { version = "1.17", features = ["full"] }
+futures = "0.3"
+structopt = "0.3"
+tracing-subscriber = { version = "0.3.5", features = ["env-filter"] }

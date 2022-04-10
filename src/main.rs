@@ -1,13 +1,24 @@
+pub mod action;
 pub mod app;
+mod aws;
 pub mod input;
 
+#[macro_use]
+extern crate lazy_static;
+
+use crate::action::handler;
+use crate::app::App;
+use crate::input::InputMode;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{error::Error, io};
+use futures::executor::block_on;
 use std::borrow::BorrowMut;
+use std::{error::Error, io};
+use tui::text::{Spans, Text};
+use tui::widgets::{List, ListItem, Paragraph};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout},
@@ -16,11 +27,6 @@ use tui::{
     widgets::{Block, BorderType, Borders},
     Frame, Terminal,
 };
-use tui::text::{Spans, Text};
-use tui::widgets::{List, ListItem, Paragraph};
-use crate::app::App;
-use crate::input::InputMode;
-
 
 fn main() -> Result<(), Box<dyn Error>> {
     // setup terminal
@@ -64,10 +70,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         return Ok(());
                     }
                     _ => {}
-                }
+                },
                 InputMode::Editing => match key.code {
                     KeyCode::Enter => {
-                        app.messages.push(app.input.drain(..).collect());
+                        let cmd: String = app.input.drain(..).collect();
+                        block_on(handler(cmd.to_string()));
+                        app.messages.push(cmd);
                     }
                     KeyCode::Char(c) => {
                         app.input.push(c);
@@ -79,8 +87,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         app.input_mode = InputMode::Normal;
                     }
                     _ => {}
-                }
-                _ => {}
+                },
             }
         }
     }
@@ -90,13 +97,15 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
-        .constraints([
-                         Constraint::Length(1),
-                         Constraint::Length(3),
-                         Constraint::Min(1),
-                     ].as_ref(),
-        ).split(f.size());
-
+        .constraints(
+            [
+                Constraint::Length(1),
+                Constraint::Length(3),
+                Constraint::Min(1),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
 
     let (msg, style) = match app.input_mode {
         InputMode::Normal => (
@@ -118,7 +127,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
                 Span::raw(" to record the message"),
             ],
             Style::default(),
-        )
+        ),
     };
     let mut text = Text::from(Spans::from(msg));
     text.patch_style(style);
@@ -134,7 +143,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
     f.render_widget(input, chunks[1]);
     match app.input_mode {
         InputMode::Normal =>
-        // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
+            // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
             {}
 
         InputMode::Editing => {
